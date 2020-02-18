@@ -59,9 +59,9 @@ class TranslationFieldMixin(models.Model):
 
     @cached_property
     def _all_translations(self):
-        attrs, names_mapper = vars(self), self._meta._field_tof['by_id']
+        attrs = vars(self)
         for trans in self._translations.all():
-            name = names_mapper[trans.field_id].name
+            name = trans.field_id.split('|')[0]
             attrs[name] = trans_obj = attrs.get(name) or TranslatableText()
             vars(trans_obj)[trans.lang_id] = trans.value
         return attrs
@@ -74,8 +74,10 @@ class TranslationFieldMixin(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        for translated_field in self._meta._field_tof['by_id'].values():
-            translated_field.save_translation(self)
+        for field in self._meta.fields:
+            field_tof = getattr(self._meta.model, field.name)
+            if isinstance(field_tof, TranslatableField):
+                field_tof.save_translation(self)
 
 
 class TranslatableField(models.Model):
@@ -93,11 +95,13 @@ class TranslatableField(models.Model):
         on_delete=models.CASCADE,
         related_name='translatablefields',
     )
+    id = models.CharField(max_length=300, primary_key=True)
 
     def __str__(self):
         return f'{self.content_type.model}|{self.title}'
 
     def save(self, *args, **kwargs):
+        self.id = f'{self.name}|{self.content_type.id}'
         super().save(*args, **kwargs)
         self.add_translation_to_class()
 
@@ -118,7 +122,6 @@ class TranslatableField(models.Model):
 
     def __delete__(self, instance):
         vars(self).pop(self.name, None)
-        instance._meta._field_tof['by_name'].pop(instance._meta._field_tof['by_id'].pop(self.id, self).name, None)
 
     def save_translation(self, instance):
         val = instance.get_translation(self.name)
@@ -131,9 +134,10 @@ class TranslatableField(models.Model):
 
     def add_translation_to_class(self, trans_mng=None):
         cls = self.content_type.model_class()
-        if not hasattr(cls._meta, '_field_tof'):
+        if not issubclass(cls, TranslationFieldMixin):
             cls.__bases__ = (TranslationFieldMixin, ) + cls.__bases__
-            cls._meta._field_tof = {'by_name': {}, 'by_id': {}}
+            field = TranslationFieldMixin._meta.get_field('_translations')
+            field.contribute_to_class(cls, '_translations')
             if CHANGE_DEFAULT_MANAGER and not isinstance(cls._default_manager, TranslationManager):
                 origin = cls.objects
                 new_mng_cls = type(f'TranslationManager{cls.__name__}', (TranslationManager, type(origin)), {})
@@ -144,20 +148,31 @@ class TranslatableField(models.Model):
                 del cls.objects
                 trans_mng.contribute_to_class(cls, 'objects')
                 origin.contribute_to_class(cls, 'objects_origin')
+        field = cls._meta.get_field(self.name)
+        field.old_descriptor = field.descriptor_class
+        field.descriptor_class = TranslatableField
         setattr(
             cls,
-            cls._meta._field_tof['by_name'].setdefault(cls._meta._field_tof['by_id'].setdefault(self.id, self).name, self).name,
+            self.name,
             self,
         )
 
     def remove_translation_from_class(self):
         cls = self.content_type.model_class()
-        cls._meta._field_tof['by_name'].pop(cls._meta._field_tof['by_id'].pop(self.id, self).name, None)
         delattr(cls, self.name)
         field = cls._meta.get_field(self.name)
-        field.contribute_to_class(cls, self.name)
-        if not cls._meta._field_tof['by_id']:
-            del cls._meta._field_tof
+        field.descriptor_class = field.old_descriptor
+        delattr(field, 'old_descriptor')
+        setattr(
+            cls,
+            self.name,
+            field.descriptor_class(field),
+        )
+        has_tof = False
+        for field in cls._meta.fields:
+            if isinstance(getattr(cls, field.name), TranslatableField):
+                has_tof = True
+        if not has_tof:
             cls.__bases__ = tuple(base for base in cls.__bases__ if base != TranslationFieldMixin)  # important!
             if CHANGE_DEFAULT_MANAGER and isinstance(cls._default_manager, TranslationManager):
                 delattr(cls, cls._default_manager.default_name)

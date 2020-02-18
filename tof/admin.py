@@ -186,9 +186,12 @@ class TofAdmin(admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         response = list(super().get_readonly_fields(request, obj))
-        field_tof = getattr(self.model._meta, '_field_tof', {}).get('by_name')
+        field_tof = []
+        for field in self.model._meta.fields:
+            if isinstance(getattr(self.model, field.name), TranslatableField):
+                field_tof.append(field.name)
         if field_tof and any(issubclass(c, TranslationInline) for c in self.inlines):
-            response.extend(field_tof.keys())
+            response.extend(field_tof)
         return tuple(response)
 
     def get_form(self, request, obj=None, change=False, **kwargs):

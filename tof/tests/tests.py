@@ -48,8 +48,10 @@ def create_field(name='title', cls=None):
 
 def clean_model(cls, attr='title'):
     if issubclass(cls, TranslationFieldMixin):
-        for fld in {**cls._meta._field_tof['by_id']}.values():
-            fld.remove_translation_from_class()
+        for field in cls._meta.fields:
+            field_tof = getattr(cls, field.name)
+            if isinstance(field_tof, TranslatableField):
+                field_tof.remove_translation_from_class()
 
 
 class TranslatableFieldTestCase(TestCase):
@@ -64,13 +66,9 @@ class TranslatableFieldTestCase(TestCase):
         log = LogEntry.objects.first()
         self.assertNotIsInstance(wine1, TranslationFieldMixin)
         self.assertNotIsInstance(log, TranslationFieldMixin)
-        self.assertIsNone(vars(LogEntry._meta).get('_field_tof'))
         create_field()
         self.assertIsInstance(wine1, TranslationFieldMixin)
-        self.assertIsNotNone(vars(Wine._meta).get('_field_tof'))
-        self.assertIsNone(vars(LogEntry._meta).get('_field_tof'))
         create_field('change_message', LogEntry)
-        self.assertIsNotNone(vars(LogEntry._meta).get('_field_tof'))
 
     def test_delete(self):
         create_field()

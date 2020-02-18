@@ -133,9 +133,12 @@ class TranslationFieldModelForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        _field_tof = getattr(self._meta.model._meta, '_field_tof', {}).get('by_name')
-        if _field_tof:
+        field_tof = []
+        for field in self._meta.model._meta.fields:
+            if hasattr(field, 'old_descriptor'):
+                field_tof.append(field)
+        if field_tof:
             from .fields import TranslatableFieldFormField
-            for name in set(_field_tof.keys()) - set(self.only_current_lang):
+            for name in set(map(lambda x: x.name, field_tof)) - set(self.only_current_lang):
                 if name in self.fields:
                     self.fields[name] = TranslatableFieldFormField(self.fields[name])

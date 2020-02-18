@@ -29,20 +29,19 @@ def tof_prefetch(*wrapper_args):
 def tof_filter(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        tof_fields = getattr(self.model._meta, '_field_tof', {}).get('by_name')
         new_args, new_kwargs = args, kwargs
-        if tof_fields:
+        if hasattr(self.model, '_translations'):
             new_args = []
             for arg in args:
                 if isinstance(arg, Q):
                     # modify Q objects (warning: recursion ahead)
-                    arg = expand_q_filters(arg, tof_fields)
+                    arg = expand_q_filters(arg, self.model)
                 new_args.append(arg)
 
             new_kwargs = {}
             for key, value in list(kwargs.items()):
                 # modify kwargs (warning: recursion ahead)
-                new_key, new_value, _ = expand_filter(tof_fields, key, value)
+                new_key, new_value, _ = expand_filter(self.model, key, value)
                 new_kwargs.update({new_key: new_value})
 
         return func(self, *new_args, **new_kwargs)
@@ -50,28 +49,29 @@ def tof_filter(func):
     return wrapper
 
 
-def expand_q_filters(q, tof_fields):
+def expand_q_filters(q, model):
     new_children = []
     for qi in q.children:
         if isinstance(qi, tuple):
             # this child is a leaf node: in Q this is a 2-tuple of:
             # (filter parameter, value)
-            key, value, repl = expand_filter(tof_fields, *qi)
+            key, value, repl = expand_filter(model, *qi)
             query = Q(**{key: value})
             if repl:
                 query |= Q(**{qi[0]: qi[1]})
             new_children.append(query)
         else:
             # this child is another Q node: recursify!
-            new_children.append(expand_q_filters(qi, tof_fields))
+            new_children.append(expand_q_filters(qi, model))
     q.children = new_children
     return q
 
 
-def expand_filter(tof_fields, key, value):
+def expand_filter(model, key, value):
     field_name, sep, lookup = key.partition('__')
-    field = tof_fields.get(field_name)
-    if field:
+    field = getattr(model, field_name)
+    from .models import TranslatableField
+    if isinstance(field, TranslatableField):
         query = Q(**{f'value{sep}{lookup}': value})
         if DEFAULT_FILTER_LANGUAGE == '__all__':
             pass
