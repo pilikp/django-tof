@@ -61,7 +61,7 @@ class TranslationFieldMixin(models.Model):
     def _all_translations(self):
         attrs = vars(self)
         for trans in self._translations.all():
-            rem, sep, field_name = trans.field_id.rpartition('.')
+            *remains, field_name = trans.field_id.rpartition('.')
             attrs[field_name] = trans_obj = attrs.get(field_name) or TranslatableText()
             vars(trans_obj)[trans.lang_id] = trans.value
         return attrs
