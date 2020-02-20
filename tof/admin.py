@@ -48,9 +48,9 @@ class ContentTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Language)
 class LanguageAdmin(admin.ModelAdmin):
-    search_fields = ('iso', )
+    search_fields = ('iso',)
     list_display = ('iso', 'is_active')
-    list_editable = ('is_active', )
+    list_editable = ('is_active',)
 
     def get_search_results(self, request, queryset, search_term):
         queryset, use_distinct = super().get_search_results(request, queryset, search_term)
@@ -70,9 +70,9 @@ class TranslatableFieldAdmin(admin.ModelAdmin):
             'name',
             'title',
         ),
-    }), )
+    }),)
 
-    autocomplete_fields = ('content_type', )
+    autocomplete_fields = ('content_type',)
 
     def delete_queryset(self, request, queryset):
         for obj in queryset:
@@ -108,7 +108,7 @@ class TranslatableFieldAdmin(admin.ModelAdmin):
 class TranslationAdmin(admin.ModelAdmin):
     form = TranslationsForm
     list_display = ('content_object', 'lang', 'field', 'value')
-    list_filter = ('content_type', )
+    list_filter = ('content_type',)
     fieldsets = ((None, {
         'fields': (
             ('field', 'lang'),
@@ -168,7 +168,7 @@ class TranslationInline(GenericInlineModelAdmin):
     @property
     def media(self):
         media = super().media
-        js = ('tof/js/translation_inline.js', )
+        js = ('tof/js/translation_inline.js',)
         return media + forms.Media(js=js)
 
 
@@ -186,10 +186,8 @@ class TofAdmin(admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         response = list(super().get_readonly_fields(request, obj))
-        field_tof = []
-        for field in self.model._meta.fields:
-            if isinstance(getattr(self.model, field.name), TranslatableField):
-                field_tof.append(field.name)
+        field_tof = [field for field in self.model._meta.fields if
+                     isinstance(getattr(self.model, field.name), TranslatableField)]
         if field_tof and any(issubclass(c, TranslationInline) for c in self.inlines):
             response.extend(field_tof)
         return tuple(response)

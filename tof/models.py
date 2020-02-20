@@ -61,8 +61,8 @@ class TranslationFieldMixin(models.Model):
     def _all_translations(self):
         attrs = vars(self)
         for trans in self._translations.all():
-            name = trans.field_id.split('|')[0]
-            attrs[name] = trans_obj = attrs.get(name) or TranslatableText()
+            rem, sep, field_name = trans.field_id.rpartition('.')
+            attrs[field_name] = trans_obj = attrs.get(field_name) or TranslatableText()
             vars(trans_obj)[trans.lang_id] = trans.value
         return attrs
 
@@ -101,7 +101,7 @@ class TranslatableField(models.Model):
         return f'{self.content_type.model}|{self.title}'
 
     def save(self, *args, **kwargs):
-        self.id = f'{self.name}|{self.content_type.id}'
+        self.id = f'{self._meta.app_label}.{self._meta.model_name}.{self.name}'
         super().save(*args, **kwargs)
         self.add_translation_to_class()
 

@@ -26,16 +26,20 @@ class DecoratedMixIn:
 
     def order_by(self, *args, **kwargs):
         from .models import Translation, TranslatableField
-        content_type_id = ContentType.objects.get_for_model(self.model).id
         new_args = []
         subqueries = {}
+        lang = get_language()
         for arg in args:
             field_name, rev = arg, ''
             if arg.startswith('-'):
                 field_name, rev = arg[1:], arg[0]
-            if isinstance(getattr(self.model, field_name), TranslatableField):
-                subquery = Translation.objects.filter(object_id=models.OuterRef('pk'), lang=get_language(),
-                                                      field=f'{field_name}|{content_type_id}').values('value')
+            field = getattr(self.model, field_name)
+            if isinstance(field, TranslatableField):
+                subquery = Translation.objects.filter(
+                    object_id=models.OuterRef('pk'),
+                    lang=lang,
+                    field=f'{field._meta.app_label}.{field._meta.model_name}.{field_name}'
+                ).values('value')
                 new_args.append(f'{rev}_{field_name}')
                 subqueries[f'_{field_name}'] = subquery
             else:
