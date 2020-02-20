@@ -40,7 +40,8 @@ class DecoratedMixIn:
                 subqueries[f'_{field_name}'] = subquery
             else:
                 new_args.append(arg)
-        self = self.model.objects.annotate(**subqueries)
+        if args:
+            self = self.model.objects.annotate(**subqueries)
         return super().order_by(*new_args, **kwargs)
 
 
