@@ -37,7 +37,7 @@ class DecoratedMixIn:
                 subquery = Translation.objects.filter(
                     object_id=models.OuterRef('pk'),
                     lang=lang,
-                    field=f'{field._meta.app_label}.{field._meta.model_name}.{field_name}'
+                    field=f'{field.content_type.app_label}.{field.content_type.model}.{field_name}'
                 ).values('value')
                 new_args.append(f'{rev}_{field_name}')
                 subqueries[f'_{field_name}'] = subquery

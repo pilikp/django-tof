@@ -101,7 +101,7 @@ class TranslatableField(models.Model):
         return f'{self.content_type.model}|{self.title}'
 
     def save(self, *args, **kwargs):
-        self.id = f'{self._meta.app_label}.{self._meta.model_name}.{self.name}'
+        self.id = f'{self.content_type.app_label}.{self.content_type.model}.{self.name}'
         super().save(*args, **kwargs)
         self.add_translation_to_class()
 
